@@ -1,3 +1,17 @@
+//------------------------------------------------------------
+// Board info: Waveshare ESP32 S3 Zero
+// Upload Set up
+// - Tool -> Board -> 'Waveshare ESP32 S3 Zero'
+// - USB CDC On Boot: Enabled
+// * Make sure to match the board info to control the builtInLED
+//------------------------------------------------------------
+// [secret.h]
+// Make sure fill up the secret infos
+// 1. WIFI SSID/PASSWORD list, can be multiple
+// 2. Firestore database API key
+// 3. Client ID, 4 digit number, matches with the DB data
+//------------------------------------------------------------
+
 #include "secrets.h"
 
 // WIFI
@@ -28,15 +42,243 @@ int lastTX = 0;
 int counter = 0;
 
 
+// Firestore Database
+String idToken;
+int tokenExpiryMs = 0;
 
-// Common Debounce time
-const uint32_t debounceMs = 220;
+// client info list
+struct ClientInfo{
+  String docPath;
+  String Name;
+};
+
+ClientInfo currentClient;
 
 
 // ------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------
 
+// TLS
+// Insecure way to detect the firebase
+// but, this project isn't public or official, so...
+// for efficiency
+static inline void makeInsecureTLS(WiFiClientSecure &client){
+  client.setInsecure();
+}
 
+// Firestore Database Auth
+bool firebaseSignIn(){
+  if(WiFi.status() != WL_CONNECTED){
+    return false;
+  }
+  WiFiClientSecure client;
+  makeInsecureTLS(client);
+  
+  HTTPClient https;
+  String url = String("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=") + FIREBASE_API_KEY;
+
+  if(!https.begin(client, url)){
+    Serial.println("[AUTH] https.begin failed");
+    return false;
+  }
+
+  // Targeting JSON shape
+  https.addHeader("Content-Type", "application/json");
+
+  StaticJsonDocument<256> req;
+  req["email"] = FIREBASE_EMAIL;
+  req["password"] = FIREBASE_PASSWORD;
+  req["returnSecureToken"] = true;
+
+  String body;
+  serializeJson(req,body);
+
+  int code = https.POST(body);
+  String resp = https.getString();
+  https.end();
+
+  Serial.printf("[AUTH] HTTP %d\n", code);
+  if(code != 200){
+    Serial.println(resp);
+    return false;
+  }
+
+  StaticJsonDocument<4096> doc;
+  auto err = deserializeJson(doc, resp);
+  if(err){
+    Serial.print("[AUTH] JSON parse error: ");
+    Serial.println(err.c_str());
+    return false;
+  }
+
+  idToken = doc["idToken"].as<String>();
+  int expiresInSec = doc["expiresIn"].as<int>();
+  tokenExpiryMs = millis() + (uint32_t)(max(60, expiresInSec - 60)) * 1000UL;
+  
+  Serial.println("[AUTH] idToken OK");
+  return true;
+}
+
+bool ensureFirebaseAuth(){
+  if(WiFi.status() != WL_CONNECTED){
+    return false;
+  }
+  if(idToken.length() == 0 || millis() > tokenExpiryMs){
+    return firebaseSignIn();
+  }
+  return true;
+}
+
+String fsBase(){
+  return String("https://firestore.googleapis.com/v1/projects/")
+       + FIREBASE_PROJECT_ID
+       + "/databases/(default)/documents/";
+}
+
+// docPath: "clients/0000/..."
+// Dig into the client infos
+String fsDocUrl(const String& docPath){
+  return fsBase() + docPath;
+}
+
+int firestoreGetRaw(const String docPath, String &outResp){
+  if(!ensureFirebaseAuth()){
+    return -1;
+  }
+  WiFiClientSecure client;
+  makeInsecureTLS(client);
+
+  HTTPClient https;
+  if(!https.begin(client, fsDocUrl(docPath))){
+    return -1;
+  }
+  https.addHeader("Authorization", "Bearer " + idToken);
+
+  int code = https.GET();
+  outResp = https.getString();
+  https.end();
+
+  return code;
+}
+
+//// Assigned to RXTask();
+// When receive other client's id, compare it with current client's data
+// {currnetClient} > clientConnection > {received client ID} > State(String value)
+// If there's no received client ID in 'clientConnection' collection,
+// make a data and set 'State' as 0
+// If there's already received client ID in 'clientConnection' collection,
+// apply 'State' ++;
+bool firestoreClientConnectionUpdate(String otherID){
+  if(!ensureFirebaseAuth()){
+    Serial.println("FirebaseAuth Failed");
+    return false;
+  }
+
+  // Preventing self pinging
+  if(otherID == String(FIREBASE_CLIENTID)){
+    Serial.println("Received same ClientID");
+    return false;
+  }
+
+  String docPath = String("clients/") + FIREBASE_CLIENTID + "/clientConnection/" + otherID;
+
+  // Access to the 'docPath' to confirm is it exist or not
+  String resp;
+  int code = firestoreGetRaw(docPath, resp);
+  Serial.print("Code: ");
+  Serial.println(code);
+
+  // When it's not exist, create one
+  if(code == 404){
+    WiFiClientSecure client;
+    makeInsecureTLS(client);
+
+    HTTPClient https;
+    String url = fsDocUrl(docPath) + "?updateMask.fieldPaths=State";
+
+    if(!https.begin(client, url)){
+      Serial.println("HTTPS Begin Falied");
+      return false;
+    }
+
+    https.addHeader("Authorization", "Bearer " + idToken);
+    https.addHeader("Content-Type", "application/json");
+
+    StaticJsonDocument<256> body;
+    JsonObject fields = body.createNestedObject("fields");
+    fields["State"]["stringValue"] = "0";
+
+    String payload;
+    serializeJson(body, payload);
+
+    int c2 = https.PATCH(payload);
+    String r2 = https.getString();
+    https.end();
+
+    if(c2 != 200){
+      Serial.println(r2);
+      return false;
+    }
+    return true;
+  }
+
+  // When it's exist, parse 'State' and increase
+  if(code == 200){
+    int current = 0;
+    {
+      DynamicJsonDocument doc(4096);
+      auto err = deserializeJson(doc, resp);
+      if(err){
+        Serial.println("Failed deserializeJson 200");
+        return false;
+      }
+      const char* s = doc["fields"]["State"]["stringValue"] | "0";
+      current = atoi(s);
+      if(current < 0){
+        current = 0;
+      }
+    }
+    int next = current + 1;
+    
+    WiFiClientSecure client;
+    makeInsecureTLS(client);
+
+    HTTPClient https;
+    String url = fsDocUrl(docPath) + "?updateMask.fieldPaths=State";
+
+    if(!https.begin(client,url)){
+      Serial.println("Failed https.begin 200");
+      return false;
+    }
+
+    https.addHeader("Authorization", "Bearer " + idToken);
+    https.addHeader("Content-Type", "application/json");
+
+    StaticJsonDocument<256> body;
+    JsonObject fields = body.createNestedObject("fields");
+
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", next);
+    fields["State"]["stringValue"] = buf;
+
+    String payload;
+    serializeJson(body, payload);
+
+    int c2 = https.PATCH(payload);
+    String r2 = https.getString();
+    https.end();
+
+    if(c2 != 200){
+        Serial.println(r2);
+        return false;
+    }
+    return true;  
+  }
+  // other errors
+  Serial.printf("[FS] GET %s -> HTTP %d\n", docPath.c_str(), code);
+  Serial.println(resp);
+  return false;
+}
 
 
 // WIFI Connection
@@ -86,15 +328,18 @@ void connectWiFi() {
 void onMsgLine(String line){
   Serial.print("Receive, ");
   Serial.println(line);
+
   // Action
-  rgbLedWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);
-  delay(1000);
-  rgbLedWrite(RGB_BUILTIN, 0, RGB_BRIGHTNESS, 0);
-  delay(1000);
-  rgbLedWrite(RGB_BUILTIN, 0, 0, RGB_BRIGHTNESS);
-  delay(1000);
-  // digitalWrite(RGB_BUILTIN, LOW);
-  // delay(1000);
+
+  // Firestore: create(State=0) if missing, else State++
+  bool tryUpdate = firestoreClientConnectionUpdate(line);
+
+  if(tryUpdate){
+    rgbLedWrite(RGB_BUILTIN, 0, 0,RGB_BRIGHTNESS);
+  }else{
+    rgbLedWrite(RGB_BUILTIN, RGB_BRIGHTNESS, 0, 0);
+  }
+  delay(500);
 }
 
 // Action after lost the msg
@@ -114,9 +359,8 @@ void TXTask(){
   lastTX = now;
   Uart.print('\r');
   Uart.print(msgLine);
-  Uart.print("0000");
+  Uart.print(FIREBASE_CLIENTID);
   Uart.print('\n');
-  // Serial.println("Sending MSG");
 }
 
 void RXTask(){
@@ -128,12 +372,11 @@ void RXTask(){
 
     if (c == '\n') {
       RXLine.trim();
-      // Serial.println(RXLine);
       
       if(RXLine.startsWith(msgLine)){
         String cmd = RXLine.substring(4);
         cmd.trim();
-        // Serial.println(cmd);
+        Serial.println(cmd);
 
         lastMsgTime = millis();
         if(!msgActivate){
@@ -168,10 +411,12 @@ void setup() {
 
   delay(200);
 
-  Uart.begin(BAUD, SERIAL_8N1, RXPin, TXPin);
+  // Uart.begin(BAUD, SERIAL_8N1, RXPin, TXPin);
 
 
-  Serial.println("SETUP READY");
+  Serial.println("ESP32 ready");
+  Serial.print("Current Client ID is: ");
+  Serial.println(FIREBASE_CLIENTID);
 
   connectWiFi();
   delay(200);
