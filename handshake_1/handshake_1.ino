@@ -31,8 +31,8 @@ const char* msgLine = "MSG:";
 int lastMsgTime = 0;
 bool msgActivate = false;
 
-const int RXPin = 5;
-const int TXPin = 6;
+const int RXPin = 7;
+const int TXPin = 8;
 
 HardwareSerial Uart(2);
 
@@ -53,6 +53,14 @@ struct ClientInfo{
 };
 
 ClientInfo currentClient;
+
+#include <Wire.h>
+// IMU (MPU6050) set
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#define I2C_SDA 2
+#define I2C_SCL 1
+Adafruit_MPU6050 mpu;
 
 
 // ------------------------------------------------------------------------------------------
@@ -326,6 +334,9 @@ void connectWiFi() {
 // RX TX 
 // Action after receive the msg
 void onMsgLine(String line){
+
+  line = FIREBASE_CLIENTID_2;
+
   Serial.print("Receive, ");
   Serial.println(line);
 
@@ -411,7 +422,7 @@ void setup() {
 
   delay(200);
 
-  // Uart.begin(BAUD, SERIAL_8N1, RXPin, TXPin);
+  Uart.begin(BAUD, SERIAL_8N1, RXPin, TXPin);
 
 
   Serial.println("ESP32 ready");
