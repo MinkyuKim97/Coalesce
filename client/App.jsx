@@ -226,8 +226,8 @@ function UnlockCard({ title, unlocked, url, isCalendar }) {
         justifyContent: "center",
         textAlign: "center",
         fontSize: unlocked
-          ? "16px"
-          : "12px",
+          ? "3em"
+          : "2em",
         fontWeight: unlocked
           ? 700
           : 500,
@@ -267,13 +267,17 @@ function AuthScreen({
         <div className="topBar">
           <div className="appTitle">{APP_TITLE}</div>
         </div>
+        <Divider / >
 
         <div className="subText">Fill the information to continue</div>
         <div className="subText">(If it's your first time using, submit the information to register)</div>
 
+        <Divider / >
+
         <FieldRow label="First Name" value={firstName} onChange={setFirstName} />
         <FieldRow label="Last Name" value={lastName} onChange={setLastName} />
         <FieldRow label="Email" value={email} onChange={setEmail}/>
+        <Divider / >
 
         <Button onClick={onSubmit} disabled={authBusy}>
           Confirm
@@ -326,12 +330,13 @@ function ProfileScreen({
         <div className="sectionDetail">Contact Info Setup</div>
         <div className="sectionDetail">Copy/Paste your contact urls</div>
 
+        <Divider / >
         {/* Website */}
         <div className="contactBox">
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">Website</div>
             <label className="lockLabel">
-              <input type="checkbox" checked={lockWebsite} onChange={(e) => setLockWebsite(e.target.checked)} />
+              <input type="checkbox" className="checkBox" checked={lockWebsite} onChange={(e) => setLockWebsite(e.target.checked)} />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -347,7 +352,7 @@ function ProfileScreen({
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">LinkedIn</div>
             <label className="lockLabel">
-              <input type="checkbox" checked={lockLinkedin} onChange={(e) => setLockLinkedin(e.target.checked)} />
+              <input type="checkbox" className="checkBox" checked={lockLinkedin} onChange={(e) => setLockLinkedin(e.target.checked)} />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -363,7 +368,7 @@ function ProfileScreen({
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">Instagram</div>
             <label className="lockLabel">
-              <input type="checkbox" checked={lockInstagram} onChange={(e) => setLockInstagram(e.target.checked)} />
+              <input type="checkbox" className="checkBox" checked={lockInstagram} onChange={(e) => setLockInstagram(e.target.checked)} />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -373,6 +378,8 @@ function ProfileScreen({
             onChange={(e) => setInstagram(e.target.value)}
           />
         </div>
+
+        <Divider / >
 
         <Button onClick={onSubmit} disabled={profileBusy}>
         Submit

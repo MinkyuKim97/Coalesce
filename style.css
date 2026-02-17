@@ -32,7 +32,7 @@ html, body {
   width: 100%;
   border: var(--strokeThick) solid var(--whiteFirst);
   background: var(--blackFirst);
-  padding: 16px;
+  padding: 2vh;
 }
 
 .topBar {
@@ -45,7 +45,7 @@ html, body {
 
 .appTitle {
   width: 100%;
-  font-size: 50px;
+  font-size: 5em;
   text-align: center;
   font-weight: 700;
   letter-spacing: 0.2px;
@@ -53,37 +53,37 @@ html, body {
 }
 
 .appTitleSmall {
-  font-size: 18px;
+  font-size: 4em;
   font-weight: 700;
 }
 
 .subText {
-  font-size: 13px;
+  font-size: 2em;
   color: var(--whiteSecond);
   margin-bottom: 12px;
 }
 
 .errorText {
-  margin-top: 12px;
-  font-size: 13px;
+  margin-top: 1.5em;
+  font-size: 1em;
   color: rgba(255,120,120,1);
 }
 
 .footNote {
-  font-size: 12px;
+  font-size: 1em;
   opacity: 0.75;
   line-height: 1.4;
 }
 
 .divider {
   height: 1px;
-  margin: 8px 0;
+  margin: 2vh 0;
 }
 
 .pill {
   padding: 6px 10px;
   border: var(--strokeThin) solid var(--whiteFirst);
-  font-size: 12px;
+  font-size:  2em;
   opacity: 0.9;
   line-height: 1;
 }
@@ -92,7 +92,7 @@ html, body {
   background: var(--whiteSecond);
   color: var(--blackFirst);
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 2em;
   cursor: pointer;
 }
 
@@ -101,8 +101,9 @@ html, body {
   margin-bottom: 12px;
 }
 
+
 .fieldLabel {
-  font-size: 12px;
+  font-size: 2em;
   opacity: 0.85;
   margin-bottom: 6px;
 }
@@ -111,21 +112,25 @@ html, body {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 12px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(0,0,0,0.28);
+  border: var(--strokeThin) solid var(--whiteSecond);
+  background: var(--blackSecond);
   color: white;
   outline: none;
-  font-size: 14px;
+  font-size: 2em;
 }
 
 .fieldInput:disabled {
   opacity: 0.6;
 }
 
+.checkBox{
+  transform: scale(2);
+}
+
 .btn {
   width: 100%;
   padding: 12px 12px;
-  font-size: 14px;
+  font-size: 2em;
   cursor: pointer;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(100,180,255,0.20);
@@ -154,27 +159,27 @@ html, body {
 }
 
 .currentClientBlock { margin-bottom: 12px; }
-.currentClientLabel { font-size: 12px; opacity: 0.75; }
-.currentClientName { font-size: 14px; font-weight: 600; }
-.currentClientEmail { font-size: 13px; opacity: 0.85; }
+.currentClientLabel { font-size: 2em; opacity: 0.75; }
+.currentClientName { font-size: 2em; font-weight: 600; }
+.currentClientEmail { font-size: 2em; opacity: 0.85; }
 
 .sectionTitle {
-  font-size: 24px;
+  font-size: 2em;
   font-weight: 800;
   margin-bottom: 10px;
 }
 
 .sectionDetail{
-  font-size: 16px;
+  font-size: 2em;
   font-weight: 400;
   margin-bottom: 10px;
 }
 
 .contactBox {
-  border: 1px solid rgba(255,255,255,0.14);
+  border: var(--strokeThin) solid var(--whiteSecond);
   padding: 12px;
   margin-bottom: 12px;
-  background: rgba(0,0,0,0.22);
+  background: var(--blackSecond);
 }
 
 .contactBoxHeader {
@@ -185,7 +190,7 @@ html, body {
 }
 
 .contactBoxTitle {
-  font-size: 13px;
+  font-size: 2em;
   font-weight: 600;
 }
 
@@ -193,13 +198,13 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 2em;
   opacity: 0.9;
 }
 
 .contactHint {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 2em;
   opacity: 0.7;
 }
 
@@ -211,9 +216,9 @@ html, body {
 }
 
 .meTopLeft { min-width: 0; }
-.meLabel { font-size: 12px; opacity: 0.75; }
+.meLabel { font-size: 2em; opacity: 0.75; }
 .meName {
-  font-size: 24px;
+  font-size: 3em;
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -228,7 +233,7 @@ html, body {
 
 .meEmail {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 3em;
   opacity: 0.82;
 }
 
@@ -247,12 +252,12 @@ html, body {
 }
 
 .connName {
-  font-size: 16px;
+  font-size: 3em;
   font-weight: 800;
 }
 
 .connMeta {
-  font-size: 12px;
+  font-size: 2em;
   opacity: 0.75;
 }
 
@@ -272,19 +277,19 @@ html, body {
 }
 
 .unlockCardTitle {
-  font-size: 13px;
+  font-size: 2em;
   font-weight: 700;
   letter-spacing: 0.2px;
 }
 
 .unlockCardStatus {
-  font-size: 12px;
+  font-size: 2em;
   opacity: 0.8;
 }
 
 .unlockCardBody {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 2em;
   opacity: 0.92;
 }
 
@@ -316,7 +321,7 @@ html, body {
   position: absolute;
   right: 10px;
   bottom: 10px;
-  font-size: 16px;
+  font-size: 2em;
   opacity: 0.4;
   pointer-events: none;
 }
