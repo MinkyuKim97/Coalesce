@@ -79,7 +79,6 @@ html, body {
   margin: 8px 0;
 }
 
-/* pills */
 .pill {
   padding: 6px 10px;
   border: var(--strokeThin) solid var(--whiteFirst);
@@ -96,7 +95,6 @@ html, body {
   cursor: pointer;
 }
 
-/* fields */
 .fieldRow {
   display: block;
   margin-bottom: 12px;
@@ -123,7 +121,6 @@ html, body {
   opacity: 0.6;
 }
 
-/* buttons */
 .btn {
   width: 100%;
   padding: 12px 12px;
@@ -155,7 +152,6 @@ html, body {
   border-color: rgba(255,60,60,0.35);
 }
 
-/* profile blocks */
 .currentClientBlock { margin-bottom: 12px; }
 .currentClientLabel { font-size: 12px; opacity: 0.75; }
 .currentClientName { font-size: 14px; font-weight: 600; }
@@ -206,7 +202,6 @@ html, body {
   opacity: 0.7;
 }
 
-/* personal top */
 .meTop {
   display: flex;
   align-items: center;
@@ -236,7 +231,6 @@ html, body {
   opacity: 0.82;
 }
 
-/* connection cards */
 .connCard {
   border: 1px solid rgba(255,255,255,0.14);
   background: var(--blackSecond);
@@ -261,7 +255,6 @@ html, body {
   opacity: 0.75;
 }
 
-/* unlock cards */
 .unlockCard {
   position: relative;
   padding: 12px;
