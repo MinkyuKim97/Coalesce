@@ -13,6 +13,7 @@ html, body {
   padding: 0;
   background: #0d0d0d;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  height: 100vh;
 }
 * {
   box-sizing: border-box;
@@ -20,6 +21,7 @@ html, body {
 
 .totalBox {
   /* min-height: 100vh; */
+  width: 100%;
   color: white;
   display: flex;
   justify-content: center;
@@ -28,7 +30,6 @@ html, body {
 
 .card {
   width: 100%;
-  max-width: 420px;
   border: var(--strokeThick) solid var(--whiteFirst);
   background: var(--blackFirst);
   padding: 16px;
