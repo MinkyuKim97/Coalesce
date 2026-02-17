@@ -1,757 +1,800 @@
-
-import "../style.css";
-import { useEffect, useMemo, useState } from "react";
-// Firestore database API key management
-// => .env contains API keys
-// Github repo contains '.env.example'
-// replace '.env.example' contents with your Firestore database API keys
+import { useEffect, useState } from "react";
 import { db } from "../firebaseConfig.js";
 import {
   collection,
+  doc,
+  getDocs,
   onSnapshot,
   query,
-  orderBy,
-  addDoc,
-  doc,
+  setDoc,
   updateDoc,
-  deleteDoc,
+  where,
 } from "firebase/firestore";
 
-// Year offset setting only for displaying
-const DISPLAY_YEAR_OFFSET = 100;
+import "/style.css";
 
-// Full name trimmer
-// Since, user is importing their name with two input fields(first and alst name)
-// get the full name by combining and trimming them
-// And why separate? Make sure user to use right form of name input
+const APP_TITLE = "Coalesce";
+
+function isReservedClientId(id) {
+  const s = String(id || "");
+  return s === "0000" || s.startsWith("0000");
+}
+
+
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// Utilities
+function normalizeSpaces(s) {
+  return (s || "").trim().replace(/\s+/g, " ");
+}
 function buildFullName(first, last) {
-  const f = (first || "").trim();
-  const l = (last || "").trim();
+  const f = normalizeSpaces(first);
+  const l = normalizeSpaces(last);
   if (!f && !l) return "";
   if (!l) return f;
   if (!f) return l;
   return `${f} ${l}`;
 }
-
-// Normalize name for database comparison
-function normalizeName(name) {
-  return (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+function normalizeNameForCompare(name) {
+  return normalizeSpaces(name).toLowerCase();
+}
+function normalizeEmailForCompare(email) {
+  return normalizeSpaces(email).toLowerCase();
+}
+function isValidEmailBasic(email) {
+  const e = normalizeSpaces(email);
+  return !!e && e.includes("@") && e.includes(".");
+}
+function pad4(n) {
+  const s = String(n);
+  return s.padStart(4, "0").slice(-4);
+}
+function safeIntFromAny(v, fallback = 0) {
+  const n = parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+function toClientShape(data) {
+  const d = data || {};
+  return {
+    Name: String(d.Name || ""),
+    Email: String(d.Email || ""),
+    Website: String(d.Website || ""),
+    LinkedIn: String(d.LinkedIn || ""),
+    Instagram: String(d.Instagram || ""),
+  };
+}
+function nonEmptyUrl(v) {
+  const s = normalizeSpaces(v);
+  return s.length ? s : "";
 }
 
-// For returning right date form from various input shapes
-// Null, undefined, Firestore Timestamp, second, millis, string second, and wrong type(just random string)
-function epochToDate(v) {
-  if (v === null || v === undefined) return null;
 
-  if (v && typeof v.toDate === "function") return v.toDate();
+function buildUnlockPlan(otherClient) {
+  const website = nonEmptyUrl(otherClient?.Website);
+  const linkedin = nonEmptyUrl(otherClient?.LinkedIn);
+  const instagram = nonEmptyUrl(otherClient?.Instagram);
 
-  if (typeof v === "number") {
-    if (v < 1e11) return new Date(v * 1000);
-    return new Date(v);
+  const contactKeys = [];
+  let step = 1;
+
+  if (website) contactKeys.push({ key: "Website", value: website, threshold: step++ });
+  if (linkedin) contactKeys.push({ key: "LinkedIn", value: linkedin, threshold: step++ });
+  if (instagram) contactKeys.push({ key: "Instagram", value: instagram, threshold: step++ });
+
+  contactKeys.push({
+  key: "Invite Dinner",
+  value: "",
+  threshold: 10,
+  isInviteDinner: true,
+});
+
+  return contactKeys;
+}
+
+async function allocateNextClientId() {
+  const snap = await getDocs(collection(db, "clients"));
+  const used = new Set();
+  snap.forEach((d) => used.add(d.id));
+
+  for (let i = 1; i <= 9999; i++) {
+    const id = pad4(i);
+    if (!used.has(id)) return id;
   }
-
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  if (n < 1e11) return new Date(n * 1000);
-  return new Date(n);
+  throw new Error("");
 }
 
-// Applying year offest(100 years)
-function applyYearOffset(date, offsetYears = DISPLAY_YEAR_OFFSET) {
-  if (!date) return null;
-  const d = new Date(date.getTime());
-  d.setFullYear(d.getFullYear() + offsetYears);
-  return d;
-}
+async function findClientByNameEmail(fullName, email) {
+  const nameKey = normalizeNameForCompare(fullName);
+  const emailKey = normalizeEmailForCompare(email);
 
-// Converting user date input into Unix
-// EX. 12/12/2025 -> 1765689600
-// The main reason why I decide to use Unix shape is
-// for mapping the 'lastreplacementdate' and 'batteryduedate' to
-// show the currentbattery percentage
-function parseMDYToEpoch(mdy) {
-  const s = (mdy || "").trim();
-  if (!s) return null;
-  const parts = s.split(/[\/\-.]/);
-  if (parts.length < 3) return null;
+  const q1 = query(collection(db, "clients"), where("Email", "==", emailKey));
+  const snap = await getDocs(q1);
 
-  const m = parseInt(parts[0], 10);
-  const d = parseInt(parts[1], 10);
-  const y = parseInt(parts[2], 10);
+  for (const d of snap.docs) {
+    if (isReservedClientId(d.id)) continue;
 
-  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y))
-    return null;
-  if (m < 1 || m > 12 || d < 1 || d > 31 || y < 1900) return null;
-
-  const date = new Date(y, m - 1, d);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return Math.floor(date.getTime() / 1000);
-}
-
-// Converting Unix into MM/DD/YYYY shape
-function formatMDY(value) {
-  const base = epochToDate(value);
-  if (!base) return "-";
-  const d = applyYearOffset(base);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
-}
-
-// Calculating the battery percentage
-// Start = lastReplacementDate
-// End = batteryDueDate
-// Now = current time
-// Always use the date without 100 year offset
-function calPercentage(member) {
-  const startDate = epochToDate(member?.lastBatteryReplacementDate);
-  const endDate = epochToDate(member?.batteryDueDate);
-  if (!startDate || !endDate) return null;
-
-  const start = startDate.getTime();
-  const end = endDate.getTime();
-  if (!(end > start)) return null;
-
-  const now = Date.now();
-  const clamped = Math.min(Math.max(now, start), end);
-
-  const usedRatio = (clamped - start) / (end - start);
-  let remainingPercent = Math.round((1 - usedRatio) * 100);
-  if (remainingPercent < 0) remainingPercent = 0;
-  if (remainingPercent > 100) remainingPercent = 100;
-
-  return { percent: remainingPercent, startDate, endDate };
-}
-
-// Use Tendency to calculate the due date
-// Higher tendency means, citizen uses the battery more than usual,
-// so, it supposes to use the battery faster.
-// So, if the tendency set as 0, due date is lastReplacement + 2 months
-// If the tendency set as 10, due date is lastReplacement + 1 month
-// In between, linearly interpolate the due date
-function calDueDateWithTendency(lastEpoch, tendencyRaw) {
-  if (lastEpoch == null) return null;
-  const lastDate = new Date(lastEpoch * 1000);
-  if (Number.isNaN(lastDate.getTime())) return null;
-
-  let t = Number(tendencyRaw);
-  if (!Number.isFinite(t)) t = 0;
-  if (t < 0) t = 0;
-  if (t > 10) t = 10;
-  const norm = t / 10; // 0~1
-
-  // base1 -> +1 month
-  // base2 -> +2 month
-  const base1 = new Date(lastDate.getTime());
-  base1.setMonth(base1.getMonth() + 1);
-  base1.setHours(0, 0, 0, 0);
-
-  const base2 = new Date(lastDate.getTime());
-  base2.setMonth(base2.getMonth() + 2);
-  base2.setHours(0, 0, 0, 0);
-
-  const ms1 = base1.getTime();
-  const ms2 = base2.getTime();
-
-  // Based on Tendency, getting closer to base1 number
-  const targetMs = ms2 - norm * (ms2 - ms1);
-
-  return Math.floor(targetMs / 1000);
-}
-
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
-
-
-// Rendering sections
-export function App() {
-  // For getting user input
-  const [firstNameInput, setFirstNameInput] = useState("");
-  const [lastNameInput, setLastNameInput] = useState("");
-  const [currentName, setCurrentName] = useState("");
-  const [newMemberName, setNewMemberName] = useState("");
-  const [connectError, setConnectError] = useState("");
-  const [members, setMembers] = useState([]);
-  const [membersLoaded, setMembersLoaded] = useState(false);
-
-  // For showing the data from database
-  const [createCountry, setCreateCountry] = useState("");
-  const [createBirth, setCreateBirth] = useState("");
-  const [createLastReplacement, setCreateLastReplacement] = useState("");
-  const [createVisa, setCreateVisa] = useState("");
-  const [createTendency, setCreateTendency] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-
-  useEffect(() => {
-    document.title = "BMD";
-  }, []);
-
-  // Get current date, but apply 100 years offset right away
-  const todayStr = useMemo(() => {
-    const base = new Date();
-    const d = applyYearOffset(base);
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    return `${mm}/${dd}/${yyyy}`;
-  }, []);
-
-  // Firestore database, information update read
-  useEffect(() => {
-    const q = query(collection(db, "members"), orderBy("batteryDueDate", "asc"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setMembers(list);
-        setMembersLoaded(true);
-      },
-      (err) => {
-        console.error("members snapshot error:", err);
-        setMembersLoaded(true);
-      }
-    );
-    return () => unsub();
-  }, []);
-
-  const currentMember = useMemo(() => {
-    if (!members.length || !currentName) return null;
-    const target = normalizeName(currentName);
-    return members.find((m) => normalizeName(m.name) === target) || null;
-  }, [members, currentName]);
-
-  const otherMembers = useMemo(() => {
-    if (!members.length) return [];
-    const me = normalizeName(currentName);
-    return members.filter(
-      (m) => normalizeName(m.name) && normalizeName(m.name) !== me
-    );
-  }, [members, currentName]);
-
-  const mainProgress = useMemo(
-    () => calPercentage(currentMember),
-    [currentMember]
-  );
-
-  // [Penalty]
-  // This section is for showing the penalty
-  // If the battery percentage goes 0%, 
-  // rerender user's financial access and visa type
-  // as 'none'
-  // Since, it's useEffect, when user replace their battery with hardware(facility)
-  // , it automatically refresh the status
-  useEffect(() => {
-    if (!currentMember || !currentMember.id) return;
-    if (!mainProgress) return;
-
-    const desiredFinancial = mainProgress.percent > 0;
-    const currentFinancial = !!currentMember.canFinancialTransactions;
-    const originalVisa = currentMember.visaTypeOriginal || currentMember.visaType || "";
-    const desiredVisa = desiredFinancial ? originalVisa : "Unable";
-    const currentVisa = currentMember.visaType || "";
-
-    if (currentFinancial === desiredFinancial && currentVisa === desiredVisa) {
-      return;
-    }
-
-    const nowEpoch = Math.floor(Date.now() / 1000);
-
-    updateDoc(doc(db, "members", currentMember.id), {
-      canFinancialTransactions: desiredFinancial,
-      visaType: desiredVisa,
-      visaTypeOriginal: originalVisa,
-      lastUpdatedClient: nowEpoch,
-    }).catch((e) => console.error("auto financial/visa update failed:", e));
-  }, [
-    currentMember?.id,
-    currentMember?.canFinancialTransactions,
-    currentMember?.visaType,
-    currentMember?.visaTypeOriginal,
-    mainProgress?.percent,
-  ]);
-
-  // Re-rendering BatteryDueDate
-  // Since, user will replace their battery through the hardware(facility),
-  // the website detect the changes and apply the result on the due date
-  useEffect(() => {
-    if (!currentMember || !currentMember.id) return;
-
-    const lastEpoch = currentMember.lastBatteryReplacementDate;
-    const tendencyVal = currentMember.tendency;
-
-    const recomputed = calDueDateWithTendency(lastEpoch, tendencyVal);
-    if (recomputed == null) return;
-
-    const currentDue = currentMember.batteryDueDate;
-    if (Number(currentDue) === recomputed) return;
-
-    const nowEpoch = Math.floor(Date.now() / 1000);
-
-    updateDoc(doc(db, "members", currentMember.id), {
-      batteryDueDate: recomputed,
-      lastUpdatedClient: nowEpoch,
-    }).catch((e) => console.error("auto due-date update failed:", e));
-  }, [
-    currentMember?.id,
-    currentMember?.lastBatteryReplacementDate,
-    currentMember?.tendency,
-    currentMember?.batteryDueDate,
-  ]);
-
-  // When user input their name,
-  // check is it on DB or not
-  // if match true -> show the dashboard
-  // if match false -> show the create new info form
-  function handleConnect(e) {
-    e?.preventDefault?.();
-    if (!membersLoaded) {
-      return;
-    }
-
-    const full = buildFullName(firstNameInput, lastNameInput);
-    if (!full) {
-      setNewMemberName("");
-      setCurrentName("");
-      return;
-    }
-
-    const target = normalizeName(full);
-    const match = members.find((m) => normalizeName(m.name) === target) || null;
-
-    if (match) {
-      setCurrentName(match.name || full);
-      setNewMemberName("");
-      setConnectError("");
-      setCreateError("");
-    } else {
-      setCurrentName("");
-      setNewMemberName(full);
-      setCreateError("");
-      setCreateCountry("");
-      setCreateBirth("");
-      setCreateLastReplacement("");
-      setCreateVisa("");
-      setCreateTendency("");
-    }
+    const data = d.data() || {};
+    const n = normalizeNameForCompare(data?.Name || "");
+    const e = normalizeEmailForCompare(data?.Email || "");
+    if (n === nameKey && e === emailKey) return { id: d.id, ...data };
   }
+  return null;
+}
 
-  // Delete current user's data
-  // In the future, need to connect with user identification 
-  // to not allow other user to delete someone else's data
-  async function handleDeleteRecord() {
-    if (!membersLoaded) return;
+function yyyymmddLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
+}
 
-    const full = buildFullName(firstNameInput, lastNameInput);
-    if (!full) {
-      setConnectError("");
-      return;
-    }
+function buildDinnerInviteUrl({ guestEmail, tz = "America/New_York" }) {
+  const now = new Date(); // 사용자 로컬 "오늘"
+  const day = yyyymmddLocal(now);
 
-    const target = normalizeName(full);
-    const match = members.find((m) => normalizeName(m.name) === target) || null;
-    if (!match) {
-      setConnectError(``);
-      return;
-    }
+  const start = `${day}T180000`;
+  const end = `${day}T190000`;
 
-    const ok = window.confirm(
-      `[WARNING] Delete record for "${match.name}"?.`
-    );
-    if (!ok) return;
-
-    try {
-      await deleteDoc(doc(db, "members", match.id));
-      if (normalizeName(currentName) === normalizeName(match.name)) {
-        setCurrentName("");
-      }
-      setNewMemberName("");
-      // setConnectError(`"${match.name}"`);
-      setCreateError("");
-    } catch (e) {
-      console.error("delete member failed:", e);
-      // setConnectError(e?.message || "Failed to delete member.");
-    }
-  }
-
-  // Creating new data record
-  async function handleCreateMember(e) {
-    e?.preventDefault?.();
-    if (!newMemberName) return;
-
-    setCreating(true);
-    setCreateError("");
-
-    try {
-      const birthEpoch = parseMDYToEpoch(createBirth);
-      if (birthEpoch == null) {
-        setCreateError("Birth Date Form -> MM/DD/YYYY");
-        setCreating(false);
-        return;
-      }
-
-      const lastEpoch = parseMDYToEpoch(createLastReplacement);
-      if (lastEpoch == null) {
-        setCreateError("Last Replacement Form -> MM/DD/YYYY");
-        setCreating(false);
-        return;
-      }
-
-      let tendencyNum = parseInt(createTendency, 10);
-      if (!Number.isFinite(tendencyNum)) tendencyNum = 0;
-      if (tendencyNum < 0) tendencyNum = 0;
-      if (tendencyNum > 10) tendencyNum = 10;
-
-      const dueEpoch = calDueDateWithTendency(lastEpoch, tendencyNum);
-      if (dueEpoch == null) {
-        setCreateError("Fail calculating Battery due date");
-        setCreating(false);
-        return;
-      }
-
-      const visaClean = createVisa || "";
-      const nowEpoch = Math.floor(Date.now() / 1000);
-
-      const docData = {
-        name: newMemberName,
-        country: createCountry || "",
-        birthDate: birthEpoch,
-        batteryDueDate: dueEpoch,
-        lastBatteryReplacementDate: lastEpoch,
-        visaType: visaClean,
-        visaTypeOriginal: visaClean,
-        canFinancialTransactions: true,
-        tendency: tendencyNum,
-        lastUpdatedClient: nowEpoch,
-      };
-
-      await addDoc(collection(db, "members"), docData);
-
-      setCurrentName(newMemberName);
-      setNewMemberName("");
-      setCreateError("");
-      setConnectError("");
-    } catch (e) {
-      console.error("create member failed:", e);
-      setCreateError(e?.message || "Failed to create data.");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  // Hows battery UI
-  // Starts, ends, and percentage
-  const batteryPercentText =
-    mainProgress && Number.isFinite(mainProgress.percent)
-      ? `${mainProgress.percent}%`
-      : "—";
-
-  const batteryStartDisplay = mainProgress
-    ? formatMDY(Math.floor(mainProgress.startDate.getTime() / 1000))
-    : "-";
-
-  const batteryEndDisplay = mainProgress
-    ? formatMDY(Math.floor(mainProgress.endDate.getTime() / 1000))
-    : "-";
-
-  const currentFinancial =
-    currentMember?.canFinancialTransactions === true ? "YES" : "NO";
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", "Dinner Together");
+  url.searchParams.set("dates", `${start}/${end}`);
+  url.searchParams.set("ctz", tz);
 
 
-  // ----------------------------------------------------------------
-  // ----------------------------------------------------------------
-  // Actual web render section
+  const e = (guestEmail || "").trim();
+  if (e) url.searchParams.append("add", e);
+
+  return url.toString();
+}
+
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// UI related functions
+function Divider() {
+  return <div className="divider" />;
+}
+
+function FieldRow({ label, value, onChange, placeholder, type = "text", disabled }) {
   return (
-    <div className="totalDiv">      
-      <div className="panel panel-main">
-        <div className="panelHeader">
-          <div>
-            <div className="titleTotalBox">
-            <div className="titleBig">BMD</div>
-            <div className="titleSmall">
-              [ Battery Management Division ]
-            </div>
+    <label className="fieldRow">
+      <div className="fieldLabel">{label}</div>
+      <input
+        className="fieldInput"
+        type={type}
+        value={value}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
 
-            </div>
-          </div>
-          <div className="panelHeaderStatus">Date:
-            <div className="datePlacer">{todayStr}
-              </div> </div>
+function Button({ children, onClick, disabled, variant = "primary", type = "button" }) {
+  const cls =
+    variant === "danger"
+      ? "btn btnDanger"
+      : variant === "ghost"
+      ? "btn btnGhost"
+      : "btn btnPrimary";
+
+  return (
+    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
+      {children}
+    </button>
+  );
+}
+
+function SmallPill({ children }) {
+  return <div className="pill">{children}</div>;
+}
+
+
+
+function UnlockCard({ title, unlocked, url, isCalendar }) {
+  const clickable = unlocked && !isCalendar && !!url;
+
+  function handleClick() {
+    if (!clickable) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : -1}
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if (!clickable) return;
+        if (e.key === "Enter" || e.key === " ") handleClick();
+      }}
+      style={{
+        border: unlocked
+          ? "var(--strokeThick) solid var(--whiteFirst)"
+          : "var(--strokeThin) solid var(--whiteSecond)",
+        background: unlocked
+          ? "var(--blackFirst)"
+          : "var(--blackSecond)",
+        padding: "10px",
+        marginTop: 10,
+        cursor: clickable ? "pointer" : "default",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        fontSize: unlocked
+          ? "16px"
+          : "12px",
+        fontWeight: unlocked
+          ? 700
+          : 500,
+        letterSpacing: 0.2,
+        color: unlocked ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.35)",
+        userSelect: "none",
+        transition: "border 120ms ease, color 120ms ease",
+      }}
+    >
+      {title}
+    </div>
+  );
+}
+
+
+
+
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+
+
+function AuthScreen({
+  firstName,
+  lastName,
+  email,
+  setFirstName,
+  setLastName,
+  setEmail,
+  onSubmit,
+  authBusy,
+  authError,
+}) {
+  return (
+    <div className="totalBox">
+      <div className="card">
+        <div className="topBar">
+          <div className="appTitle">{APP_TITLE}</div>
         </div>
 
-        <div className="panelBody-split">
-          <div className="sectionCard">
-            <h3 className="sectionTitle">Citizen Identity Check</h3>
+        <div className="subText">Fill the information to continue</div>
+        <div className="subText">(If it's your first time using, submit the information to register)</div>
 
-            <form className="identityForm" onSubmit={handleConnect}>
-              <div className="field">
-                <span>First Name</span>
-                <input
-                  className="input"
-                  value={firstNameInput}
-                  onChange={(e) => setFirstNameInput(e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <span>Last Name</span>
-                <input
-                  className="input"
-                  value={lastNameInput}
-                  onChange={(e) => setLastNameInput(e.target.value)}
-                />
-              </div>
+        <FieldRow label="First Name" value={firstName} onChange={setFirstName} />
+        <FieldRow label="Last Name" value={lastName} onChange={setLastName} />
+        <FieldRow label="Email" value={email} onChange={setEmail}/>
 
-              <div className="identityActions">
-                <button
-                  type="submit"
-                  className="btn"
-                  disabled={!membersLoaded}
-                >
-                  Access Data
-                </button>
-                <button
-                  type="button"
-                  className="btn dangerBtn"
-                  onClick={handleDeleteRecord}
-                  disabled={!membersLoaded}
-                >
-                  Delete Data
-                </button>
-              </div>
-            </form>
+        <Button onClick={onSubmit} disabled={authBusy}>
+          Confirm
+        </Button>
 
-            <div className="statusStack">
-              {connectError && (
-                <div className="statusText error">{connectError}</div>
-              )}
-            </div>
-          </div>
+        {/* {authError ? <div className="errorText">{authError}</div> : null} */}
 
-
-          <div className="sectionCard">
-            {currentMember ? (
-              <div className="dashboardWrapper">
-                <div className="memberHeaderRow">
-                  <div>
-                    <div className="memberHeaderLabel">Citizen Name:</div>
-                    <div className="memberName">{currentMember.name}</div>
-                  </div>
-                </div>
-
-                <div className="batterySection">
-                  <div className="batteryHeaderRow">
-                    <div>Battery Percentage:</div>
-                  </div>
-
-                  <div className="batteryBarShell">
-                    <div
-                      className="batteryBarFill"
-                      style={{
-                        width:
-                          mainProgress &&
-                          Number.isFinite(mainProgress.percent)
-                            ? `${mainProgress.percent}%`
-                            : "0%",
-                      }}
-                    />
-                  </div>
-
-                  <div className="batteryFooterRow">
-                    <div>
-                      <div className="batteryPercent">
-                        {batteryPercentText}
-                      </div>
-                    </div>
-                    <div className="batteryRight">
-                      <div className="batteryLabel">
-                        Last Replacement Date:
-                      </div>
-                      <div>{batteryStartDisplay}</div>
-                      <div className="batteryLabel">
-                        Estimated Next Replacement Date:
-                      </div>
-                      <div>{batteryEndDisplay}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="infoGrid">
-                  <div className="infoCell">
-                    <div className="infoLabel">Country</div>
-                    <div className="infoValue">
-                      {currentMember.country || "—"}
-                    </div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">Birth Date</div>
-                    <div className="infoValue">
-                      {formatMDY(currentMember.birthDate)}
-                    </div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">Battery Due Date</div>
-                    <div className="infoValue">
-                      {formatMDY(currentMember.batteryDueDate)}
-                    </div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">Financial Access</div>
-                    <div className="infoValue">{currentFinancial}</div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">
-                      Last Battery Replacement
-                    </div>
-                    <div className="infoValue">
-                      {formatMDY(currentMember.lastBatteryReplacementDate)}
-                    </div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">Visa Type</div>
-                    <div className="infoValue">
-                      {currentMember.visaType || "—"}
-                    </div>
-                  </div>
-                  <div className="infoCell">
-                    <div className="infoLabel">Tendency</div>
-                    <div className="infoValue">
-                      {Number.isFinite(currentMember.tendency)
-                        ? `${currentMember.tendency} / 10`
-                        : "—"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : newMemberName ? (
-              // Creating new citizen data
-              <>
-                <h3 className="sectionTitle">
-                  New Citizen Registration: {newMemberName}
-                </h3>
-
-                <form
-                  onSubmit={handleCreateMember}
-                  className="newClientForm"
-                >
-                  <div className="field">
-                    <span>Country</span>
-                    <input
-                      className="input"
-                      value={createCountry}
-                      onChange={(e) => setCreateCountry(e.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Birth Date</span>
-                    <input
-                      className="input"
-                      value={createBirth}
-                      onChange={(e) => setCreateBirth(e.target.value)}
-                      placeholder="MM/DD/YYYY"
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Last Battery Replacement Date</span>
-                    <input
-                      className="input"
-                      value={createLastReplacement}
-                      onChange={(e) =>
-                        setCreateLastReplacement(e.target.value)
-                      }
-                      placeholder="MM/DD/YYYY"
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Visa Type</span>
-                    <input
-                      className="input"
-                      value={createVisa}
-                      onChange={(e) => setCreateVisa(e.target.value)}
-                      placeholder="F-1 / H-1B / etc."
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Tendency (how hard you work?)</span>
-                    <input
-                      className="input"
-                      value={createTendency}
-                      onChange={(e) => setCreateTendency(e.target.value)}
-                      placeholder="0 - 10"
-                    />
-                  </div>
-                  <div className="newClientSubmitCell">
-                    <button
-                      type="submit"
-                      className="btn"
-                      disabled={creating}
-                    >
-                      {creating ? "Creating..." : "Create Data"}
-                    </button>
-                  </div>
-                </form>
-
-                <div className="statusStack">
-                  {createError && (
-                    <div className="statusText error">{createError}</div>
-                  )}
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Other citizen's battery infos */}
-      <div className="panel panel-others">
-        <div className="othersGridWrapper">
-          <div className="othersGrid">
-            {otherMembers.map((m) => {
-              const p = calPercentage(m);
-              const percent =
-                p && Number.isFinite(p.percent) ? p.percent : null;
-              const percentText =
-                percent === null ? "—" : `${percent}%`;
+function ProfileScreen({
+  myName,
+  myEmail,
+  website,
+  linkedin,
+  instagram,
+  setWebsite,
+  setLinkedin,
+  setInstagram,
+  lockWebsite,
+  lockLinkedin,
+  lockInstagram,
+  setLockWebsite,
+  setLockLinkedin,
+  setLockInstagram,
+  onSubmit,
+  onLogout,
+  profileBusy,
+  profileError,
+}) {
+  return (
+    <div className="totalBox">
+      <div className="card">
+        <div className="topBar">
+          <div className="appTitleSmall">{APP_TITLE}</div>
+          <button onClick={onLogout} className="pillBtn">
+            Logout
+          </button>
+        </div>
 
-              const lastDisplay = formatMDY(
-                m.lastBatteryReplacementDate
-              );
-              const tendencyDisplay = m.tendency;
-              const dueDisplay = formatMDY(m.batteryDueDate);
+        <div className="currentClientBlock">
+          <div className="currentClientName">{myName || "—"}</div>
+          <div className="currentClientEmail">{myEmail || "—"}</div>
+        </div>
 
+        <Divider />
+
+        <div className="sectionDetail">Contact Info Setup</div>
+        <div className="sectionDetail">Copy/Paste your contact urls</div>
+
+        {/* Website */}
+        <div className="contactBox">
+          <div className="contactBoxHeader">
+            <div className="contactBoxTitle">Website</div>
+            <label className="lockLabel">
+              <input type="checkbox" checked={lockWebsite} onChange={(e) => setLockWebsite(e.target.checked)} />
+              <span>Check if you don't want to use</span>
+            </label>
+          </div>
+          <input
+            className="fieldInput"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+          />
+        </div>
+
+        {/* LinkedIn */}
+        <div className="contactBox">
+          <div className="contactBoxHeader">
+            <div className="contactBoxTitle">LinkedIn</div>
+            <label className="lockLabel">
+              <input type="checkbox" checked={lockLinkedin} onChange={(e) => setLockLinkedin(e.target.checked)} />
+              <span>Check if you don't want to use</span>
+            </label>
+          </div>
+          <input
+            className="fieldInput"
+            value={linkedin}
+            onChange={(e) => setLinkedin(e.target.value)}
+          />
+        </div>
+
+        {/* Instagram */}
+        <div className="contactBox">
+          <div className="contactBoxHeader">
+            <div className="contactBoxTitle">Instagram</div>
+            <label className="lockLabel">
+              <input type="checkbox" checked={lockInstagram} onChange={(e) => setLockInstagram(e.target.checked)} />
+              <span>Check if you don't want to use</span>
+            </label>
+          </div>
+          <input
+            className="fieldInput"
+            value={instagram}
+            onChange={(e) => setInstagram(e.target.value)}
+          />
+        </div>
+
+        <Button onClick={onSubmit} disabled={profileBusy}>
+        Submit
+        </Button>
+
+        {/* {profileError ? <div className="errorText">{profileError}</div> : null} */}
+      </div>
+    </div>
+  );
+}
+
+function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, othersMap, onLogout }) {
+  return (
+    <div className="totalBox">
+      <div className="card">
+        <div className="meTop">
+          <div className="meTopLeft">
+            <div className="meName">{myName || "—"}</div>
+          </div>
+
+          <div className="meTopRight">
+            <SmallPill>{`How many you met?: ${connCount}/${totalOthers || 0}`}</SmallPill>
+            <button onClick={onLogout} className="pillBtn">
+              Logout
+            </button>
+          </div>
+        </div>
+
+
+        <Divider />
+
+          <a
+            href="https://evilpotatoking.itch.io/handshake-test"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none", display: "block" }}
+          >
+            <Button>
+              Coalescence, Data Visualization
+            </Button>
+          </a>
+
+        <Divider />
+        <Divider />
+
+        <div className="sectionTitle">Connections</div>
+
+        {connections.length === 0 ? (
+          <div className="muted"></div>
+        ) : (
+          <div>
+            {connections.map((c) => {
+              const other = othersMap[c.otherId];
+              const otherName = other?.Name || c.otherId;
+              
+              const stateNum = Math.max(0, safeIntFromAny(c.state, 0));
+              const plan = buildUnlockPlan(other);
+              const guestEmail = other?.Email || "";
               return (
-                <div className="otherCard" key={m.id}>
-                  <div className="otherTopRow">
-                    <div>{m.name}</div>
-                    <div>{percentText}</div>
+                <div key={c.otherId} className="connCard">
+                  <div className="connHeader">
+                    <div className="connName">{otherName}</div>
                   </div>
-                  <div className="otherBatteryShell">
-                    <div
-                      className="otherBatteryFill"
-                      style={{
-                        width:
-                          percent === null ? "0%" : `${percent}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="otherBottomRow">
-                    <span>Tendency: {tendencyDisplay} / 10</span>
-                    <span> Battery Due: {dueDisplay}</span>
-                  </div>
+
+                  {plan.map((item) => {
+                    const unlocked = stateNum >= item.threshold;
+
+                    
+                    if (item.isInviteDinner) {
+                      const inviteUrl = buildDinnerInviteUrl({
+                        guestEmail,
+                        tz: "America/New_York",
+                      });
+
+                      return (
+                        <UnlockCard
+                          key={`${c.otherId}-${item.key}`}
+                          title={item.key}
+                          unlocked={unlocked}
+                          url={inviteUrl}
+                          isCalendar={false}
+                        />
+                      );
+                    }
+
+                    
+                    return (
+                      <UnlockCard
+                        key={`${c.otherId}-${item.key}`}
+                        title={item.key}
+                        unlocked={unlocked}
+                        url={item.value}
+                        isCalendar={false}
+                      />
+                    );
+                  })}
                 </div>
               );
             })}
-
-            {otherMembers.length === 0 && (
-              <div className="otherCard">
-                <div>No other data</div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+
+// Main App render
+
+export function App() {
+  const [screen, setScreen] = useState("auth");
+
+  // Auth inputs
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+
+  // Logged in client
+  const [myClientId, setMyClientId] = useState("");
+  const [myClient, setMyClient] = useState(null);
+
+  // Profile inputs + locks
+  const [website, setWebsite] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [instagram, setInstagram] = useState("");
+
+  const [lockWebsite, setLockWebsite] = useState(false);
+  const [lockLinkedin, setLockLinkedin] = useState(false);
+  const [lockInstagram, setLockInstagram] = useState(false);
+
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+
+  const [connCount, setConnCount] = useState(0);
+  const [connections, setConnections] = useState([]); // [{otherId, state}]
+  const [othersMap, setOthersMap] = useState({});
+  const [totalOthers, setTotalOthers] = useState(0); // ✅ 분모용
+
+
+  useEffect(() => {
+    document.title = APP_TITLE;
+    const savedId = localStorage.getItem("coalesce_clientId") || "";
+    if (savedId) {
+      setMyClientId(savedId);
+      setScreen("me");
+    }
+  }, []);
+
+
+  useEffect(() => {
+    if (!myClientId) return;
+
+    const unsub = onSnapshot(
+      doc(db, "clients", myClientId),
+      (snap) => {
+        if (!snap.exists()) {
+          setMyClient(null);
+          return;
+        }
+        setMyClient({ id: snap.id, ...toClientShape(snap.data()) });
+      },
+      (err) => console.error("my client snapshot error:", err)
+    );
+
+    return () => unsub();
+  }, [myClientId]);
+
+
+  useEffect(() => {
+    if (!myClientId) {
+      setTotalOthers(0);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      collection(db, "clients"),
+      (snap) => {
+        let count = 0;
+        snap.forEach((d) => {
+          if (isReservedClientId(d.id)) return;
+          if (d.id === myClientId) return;
+          count++;
+        });
+        setTotalOthers(count);
+      },
+      (err) => console.error("clients snapshot error:", err)
+    );
+
+    return () => unsub();
+  }, [myClientId]);
+
+
+  useEffect(() => {
+    if (!myClientId) return;
+
+    const colRef = collection(db, "clients", myClientId, "clientConnection");
+    const unsub = onSnapshot(
+      colRef,
+      (snap) => {
+        const list = [];
+        snap.forEach((d) => {
+          if (isReservedClientId(d.id)) return;
+          const data = d.data() || {};
+          list.push({ otherId: d.id, state: String(data.State ?? "0") });
+        });
+        list.sort((a, b) => a.otherId.localeCompare(b.otherId));
+        setConnections(list);
+        setConnCount(list.length);
+      },
+      (err) => console.error("clientConnection snapshot error:", err)
+    );
+
+    return () => unsub();
+  }, [myClientId]);
+
+
+  useEffect(() => {
+    const unsubs = [];
+    let alive = true;
+
+    const ids = connections.map((c) => c.otherId).filter((id) => id && !isReservedClientId(id));
+    if (!ids.length) {
+      setOthersMap({});
+      return () => {};
+    }
+
+   setOthersMap((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        if (!ids.includes(k)) delete next[k];
+      }
+      return next;
+    });
+
+    for (const id of ids) {
+      const unsub = onSnapshot(
+        doc(db, "clients", id),
+        (snap) => {
+          if (!alive) return;
+          if (!snap.exists()) {
+            setOthersMap((prev) => {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            });
+            return;
+          }
+          setOthersMap((prev) => ({ ...prev, [id]: { id: snap.id, ...toClientShape(snap.data()) } }));
+        },
+        (err) => console.error("other client snapshot error:", id, err)
+      );
+      unsubs.push(unsub);
+    }
+
+    return () => {
+      alive = false;
+      unsubs.forEach((fn) => {
+        try { fn(); } catch {}
+      });
+    };
+  }, [connections]);
+
+
+  
+
+  async function handleAuthSubmit() {
+    setAuthError("");
+    setProfileError("");
+
+    const fullName = buildFullName(firstName, lastName);
+    const emailClean = normalizeEmailForCompare(email);
+
+    if (!fullName || !emailClean) return setAuthError("Fill Infos");
+    if (!isValidEmailBasic(emailClean)) return setAuthError("Fill Infos");
+
+    setAuthBusy(true);
+    try {
+      const existing = await findClientByNameEmail(fullName, emailClean);
+      if (existing?.id) {
+        localStorage.setItem("coalesce_clientId", existing.id);
+        setMyClientId(existing.id);
+        setScreen("me");
+        return;
+      }
+
+      const newId = await allocateNextClientId();
+      const docData = {
+        Name: normalizeSpaces(fullName),
+        Email: emailClean,
+        Website: "",
+        LinkedIn: "",
+        Instagram: "",
+      };
+
+      await setDoc(doc(db, "clients", newId), docData);
+
+      // auto create clientConnection + dummy
+      await setDoc(doc(db, "clients", newId, "clientConnection", "0000"), { State: "0" });
+
+      localStorage.setItem("coalesce_clientId", newId);
+      setMyClientId(newId);
+
+      setWebsite("");
+      setLinkedin("");
+      setInstagram("");
+      setLockWebsite(false);
+      setLockLinkedin(false);
+      setLockInstagram(false);
+
+      setScreen("profile");
+    } catch (e) {
+      console.error("auth failed:", e);
+      setAuthError(e?.message || "Auth failed.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleProfileSubmit() {
+    if (!myClientId || !myClient) return;
+
+    setProfileError("");
+    setProfileBusy(true);
+    try {
+      const w = normalizeSpaces(website);
+      const l = normalizeSpaces(linkedin);
+      const i = normalizeSpaces(instagram);
+
+      if (!lockWebsite && !w) return setProfileError("Fill infos");
+      if (!lockLinkedin && !l) return setProfileError("Fill infos");
+      if (!lockInstagram && !i) return setProfileError("Fill infos");
+
+      await updateDoc(doc(db, "clients", myClientId), {
+        Website: w || "",
+        LinkedIn: l || "",
+        Instagram: i || "",
+      });
+
+      setScreen("me");
+    } catch (e) {
+      console.error("profile submit failed:", e);
+      setProfileError(e?.message || "Failed to update profile.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("coalesce_clientId");
+    setMyClientId("");
+    setMyClient(null);
+    setConnections([]);
+    setOthersMap({});
+    setConnCount(0);
+    setTotalOthers(0);
+    setScreen("auth");
+    setAuthError("");
+    setProfileError("");
+  }
+
+
+  const myName = myClient?.Name || "";
+  const myEmail = myClient?.Email || "";
+
+
+  if (screen === "auth") {
+    return (
+      <AuthScreen
+        firstName={firstName}
+        lastName={lastName}
+        email={email}
+        setFirstName={setFirstName}
+        setLastName={setLastName}
+        setEmail={setEmail}
+        onSubmit={handleAuthSubmit}
+        authBusy={authBusy}
+        authError={authError}
+      />
+    );
+  }
+
+  if (screen === "profile") {
+    return (
+      <ProfileScreen
+        myName={myName}
+        myEmail={myEmail}
+        website={website}
+        linkedin={linkedin}
+        instagram={instagram}
+        setWebsite={setWebsite}
+        setLinkedin={setLinkedin}
+        setInstagram={setInstagram}
+        lockWebsite={lockWebsite}
+        lockLinkedin={lockLinkedin}
+        lockInstagram={lockInstagram}
+        setLockWebsite={setLockWebsite}
+        setLockLinkedin={setLockLinkedin}
+        setLockInstagram={setLockInstagram}
+        onSubmit={handleProfileSubmit}
+        onLogout={handleLogout}
+        profileBusy={profileBusy}
+        profileError={profileError}
+      />
+    );
+  }
+
+  return (
+    <PersonalScreen
+      myName={myName}
+      myEmail={myEmail}
+      connCount={connCount}
+      totalOthers={totalOthers}
+      connections={connections}
+      othersMap={othersMap}
+      onLogout={handleLogout}
+    />
   );
 }

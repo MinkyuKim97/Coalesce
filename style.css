@@ -1,138 +1,333 @@
+
 :root{
-  --glass: rgba(255,255,255,.12);
-  --glass-strong: rgba(255,255,255,.18);
-  --border: rgba(255,255,255,.22);
-  --text: rgba(255,255,255,.92);
-  --muted: rgba(255,255,255,.65);
+  --blackFirst: #0d0d0d;
+  --blackSecond: #141414;
+  --whiteFirst: #ededed;
+  --whiteSecond: #9c9c9c;
+  --strokeThick: 1px;
+  --strokeThin: 0.2px;
 }
 
-* { box-sizing: border-box; }
-
-body{
+html, body {
   margin: 0;
+  padding: 0;
+  background: #0d0d0d;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+* {
+  box-sizing: border-box;
+}
+
+.totalBox {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color: var(--text);
-  background: #0b0b0b;
-  overflow: hidden;
-  color-scheme: dark;
+  color: white;
+  display: flex;
+  justify-content: center;
+  padding: 20px;
 }
 
-.card{
-  width: min(520px, 92vw);
-  padding: 28px 28px 24px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, var(--glass-strong), var(--glass));
-  border: 1px solid var(--border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,.06);
+.card {
+  width: 100%;
+  max-width: 420px;
+  border: var(--strokeThick) solid var(--whiteFirst);
+  background: var(--blackFirst);
+  padding: 16px;
 }
 
-.title{
-  margin: 0 0 18px;
-  font-size: 22px;
-  letter-spacing: .2px;
-}
-
-.field{
-  display: grid;
-  gap: 10px;
+.topBar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
-label{
-  font-size: 12px;
-  color: var(--muted);
-  letter-spacing: .2px;
-}
-
-input{
+.appTitle {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(141, 141, 141, 0.226);
-  color: var(--text);
+  font-size: 50px;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin-bottom: 20;
+}
+
+.appTitleSmall {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.subText {
+  font-size: 13px;
+  color: var(--whiteSecond);
+  margin-bottom: 12px;
+}
+
+.errorText {
+  margin-top: 12px;
+  font-size: 13px;
+  color: rgba(255,120,120,1);
+}
+
+.footNote {
+  font-size: 12px;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+.divider {
+  height: 1px;
+  margin: 8px 0;
+}
+
+/* pills */
+.pill {
+  padding: 6px 10px;
+  border: var(--strokeThin) solid var(--whiteFirst);
+  font-size: 12px;
+  opacity: 0.9;
+  line-height: 1;
+}
+
+.pillBtn {
+  background: var(--whiteSecond);
+  color: var(--blackFirst);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* fields */
+.fieldRow {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.fieldInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.28);
+  color: white;
   outline: none;
-  transition: border-color .2s ease, box-shadow .2s ease, transform .12s ease, background .2s ease;
+  font-size: 14px;
 }
 
-input::placeholder{ color: rgba(255,255,255,.35); }
-
-input:focus{
-  background: rgba(141, 141, 141, 0.26);
-  border-color: rgba(255,255,255,.35);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+.fieldInput:disabled {
+  opacity: 0.6;
 }
 
-input:hover{
-  border-color: rgba(255,255,255,.28);
-  transform: translateY(-1px);
+/* buttons */
+.btn {
+  width: 100%;
+  padding: 12px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(100,180,255,0.20);
+  color: white;
 }
 
-.actions{
-  margin-top: 16px;
+.btn:disabled {
+  cursor: not-allowed;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.55);
+}
+
+.btnPrimary {
+  background: var(--whiteSecond);
+  color: var(--blackFirst);
+}
+
+.btnGhost {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.btnDanger {
+  background: rgba(255,60,60,0.20);
+  border-color: rgba(255,60,60,0.35);
+}
+
+/* profile blocks */
+.currentClientBlock { margin-bottom: 12px; }
+.currentClientLabel { font-size: 12px; opacity: 0.75; }
+.currentClientName { font-size: 14px; font-weight: 600; }
+.currentClientEmail { font-size: 13px; opacity: 0.85; }
+
+.sectionTitle {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.sectionDetail{
+  font-size: 16px;
+  font-weight: 400;
+  margin-bottom: 10px;
+}
+
+.contactBox {
+  border: 1px solid rgba(255,255,255,0.14);
+  padding: 12px;
+  margin-bottom: 12px;
+  background: rgba(0,0,0,0.22);
+}
+
+.contactBoxHeader {
   display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.contactBoxTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lockLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.contactHint {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* personal top */
+.meTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.btn{
-  position: relative;
-  width: 100%;
-  padding: 12px 16px;
-  border: 0;
-  border-radius: 14px;
-  color: rgba(255,255,255,.92);
-  font-weight: 600;
-  letter-spacing: .2px;
-  background: rgba(255,255,255,.10);
-  border: 1px solid rgba(255,255,255,.22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  cursor: pointer;
+.meTopLeft { min-width: 0; }
+.meLabel { font-size: 12px; opacity: 0.75; }
+.meName {
+  font-size: 24px;
+  font-weight: 800;
   overflow: hidden;
-  transition: transform .12s ease, background .2s ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.btn:hover{
-  transform: translateY(-1px);
-  background: rgba(255,255,255,.14);
+.meTopRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.btn:active{ transform: translateY(0px) scale(.99); }
-
-/* ripple effect */
-.ripple{
-  position: absolute;
-  border-radius: 50%;
-  transform: scale(0);
-  opacity: .55;
-  pointer-events: none;
-  background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(255,255,255,.45) 30%, transparent 70%);
-  animation: ripple .6s ease-out forwards;
-  mix-blend-mode: overlay;
-}
-@keyframes ripple{
-  to{ transform: scale(4); opacity: 0; }
+.meEmail {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.82;
 }
 
-/* status message */
-.status{
-  margin-top: 12px;
+/* connection cards */
+.connCard {
+  border: 1px solid rgba(255,255,255,0.14);
+  background: var(--blackSecond);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.connHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.connName {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.connMeta {
   font-size: 12px;
-  min-height: 16px;
-  color: rgba(255,255,255,.70);
+  opacity: 0.75;
 }
 
-/* status variants */
-.status--error{
-  color: rgba(255, 120, 120, .95);
+/* unlock cards */
+.unlockCard {
+  position: relative;
+  padding: 12px;
+  margin-top: 10px;
+  overflow: hidden;
+  transition: opacity 120ms ease, transform 120ms ease, border 120ms ease;
 }
-.status--success{
-  color: rgba(255, 255, 255, 0.95);
+
+.unlockCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.unlockCardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.unlockCardStatus {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.unlockCardBody {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.unlockCard--locked {
+  border: var(--strokeThin) solid var(--whiteSecond);
+  background: var(--blackSecond);
+  opacity: 0.55;
+  cursor: default;
+}
+
+.unlockCard--unlocked {
+  border: var(--strokeThick) solid var(--whiteFirst);
+  background: var(--blackFirst);
+  opacity: 1;
+}
+
+.unlockCard--clickable {
+  cursor: pointer;
+}
+
+.unlockOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.45) 100%);
+  pointer-events: none;
+}
+
+.unlockIcon {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 16px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.muted {
+  font-size: 13px;
+  opacity: 0.7;
 }
