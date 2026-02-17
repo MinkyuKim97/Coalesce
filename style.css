@@ -19,7 +19,7 @@ html, body {
 }
 
 .totalBox {
-  min-height: 100vh;
+  /* min-height: 100vh; */
   color: white;
   display: flex;
   justify-content: center;
