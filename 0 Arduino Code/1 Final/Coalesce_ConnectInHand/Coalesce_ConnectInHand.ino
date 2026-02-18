@@ -32,8 +32,8 @@ int lastMsgTime = 0;
 bool msgActivate = false;
 bool feedbackActivate = true;
 
-const int RXPin = 7;
-const int TXPin = 8;
+const int RXPin = 5;
+const int TXPin = 6;
 
 HardwareSerial Uart(2);
 
@@ -404,6 +404,7 @@ void onMsgLine(String line){
 void onMsgLost() {
   Serial.println("Connection lost");
   digitalWrite(RGB_BUILTIN, LOW);
+  digitalWrite(RGB_BUILTIN, HIGH);  
   delay(1000);
   handshakeEnable = false;
   feedbackActivate = true;
