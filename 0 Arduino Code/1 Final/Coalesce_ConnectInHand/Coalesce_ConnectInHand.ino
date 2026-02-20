@@ -374,8 +374,6 @@ void connectWiFi() {
 // Action after receive the msg
 void onMsgLine(String line){
 
-  line = FIREBASE_CLIENTID_2;
-
   targetClientID = line;
 
   Serial.print("Receive, ");
