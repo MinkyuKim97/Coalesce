@@ -20,7 +20,6 @@ function isReservedClientId(id) {
   return s === "0000" || s.startsWith("0000");
 }
 
-
 // ------------------------------------------------------------------
 // ------------------------------------------------------------------
 // ------------------------------------------------------------------
@@ -69,7 +68,6 @@ function nonEmptyUrl(v) {
   return s.length ? s : "";
 }
 
-
 function buildUnlockPlan(otherClient) {
   const website = nonEmptyUrl(otherClient?.Website);
   const linkedin = nonEmptyUrl(otherClient?.LinkedIn);
@@ -78,16 +76,19 @@ function buildUnlockPlan(otherClient) {
   const contactKeys = [];
   let step = 1;
 
-  if (website) contactKeys.push({ key: "Website", value: website, threshold: step++ });
-  if (linkedin) contactKeys.push({ key: "LinkedIn", value: linkedin, threshold: step++ });
-  if (instagram) contactKeys.push({ key: "Instagram", value: instagram, threshold: step++ });
+  if (website)
+    contactKeys.push({ key: "Website", value: website, threshold: step++ });
+  if (linkedin)
+    contactKeys.push({ key: "LinkedIn", value: linkedin, threshold: step++ });
+  if (instagram)
+    contactKeys.push({ key: "Instagram", value: instagram, threshold: step++ });
 
   contactKeys.push({
-  key: "Invite Dinner",
-  value: "",
-  threshold: 10,
-  isInviteDinner: true,
-});
+    key: "Invite Dinner",
+    value: "",
+    threshold: 10,
+    isInviteDinner: true,
+  });
 
   return contactKeys;
 }
@@ -142,7 +143,6 @@ function buildDinnerInviteUrl({ guestEmail, tz = "America/New_York" }) {
   url.searchParams.set("dates", `${start}/${end}`);
   url.searchParams.set("ctz", tz);
 
-
   const e = (guestEmail || "").trim();
   if (e) url.searchParams.append("add", e);
 
@@ -157,7 +157,14 @@ function Divider() {
   return <div className="divider" />;
 }
 
-function FieldRow({ label, value, onChange, placeholder, type = "text", disabled }) {
+function FieldRow({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  disabled,
+}) {
   return (
     <label className="fieldRow">
       <div className="fieldLabel">{label}</div>
@@ -173,13 +180,19 @@ function FieldRow({ label, value, onChange, placeholder, type = "text", disabled
   );
 }
 
-function Button({ children, onClick, disabled, variant = "primary", type = "button" }) {
+function Button({
+  children,
+  onClick,
+  disabled,
+  variant = "primary",
+  type = "button",
+}) {
   const cls =
     variant === "danger"
       ? "btn btnDanger"
       : variant === "ghost"
-      ? "btn btnGhost"
-      : "btn btnPrimary";
+        ? "btn btnGhost"
+        : "btn btnPrimary";
 
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={cls}>
@@ -191,8 +204,6 @@ function Button({ children, onClick, disabled, variant = "primary", type = "butt
 function SmallPill({ children }) {
   return <div className="pill">{children}</div>;
 }
-
-
 
 function UnlockCard({ title, unlocked, url, isCalendar }) {
   const clickable = unlocked && !isCalendar && !!url;
@@ -215,9 +226,7 @@ function UnlockCard({ title, unlocked, url, isCalendar }) {
         border: unlocked
           ? "var(--strokeThick) solid var(--whiteFirst)"
           : "var(--strokeThin) solid var(--whiteSecond)",
-        background: unlocked
-          ? "var(--blackFirst)"
-          : "var(--blackSecond)",
+        background: unlocked ? "var(--blackFirst)" : "var(--blackSecond)",
         padding: "10px",
         marginTop: 10,
         cursor: clickable ? "pointer" : "default",
@@ -225,12 +234,8 @@ function UnlockCard({ title, unlocked, url, isCalendar }) {
         alignItems: "center",
         justifyContent: "center",
         textAlign: "center",
-        fontSize: unlocked
-          ? "3em"
-          : "2em",
-        fontWeight: unlocked
-          ? 700
-          : 500,
+        fontSize: unlocked ? "3em" : "2em",
+        fontWeight: unlocked ? 700 : 500,
         letterSpacing: 0.2,
         color: unlocked ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.35)",
         userSelect: "none",
@@ -242,13 +247,9 @@ function UnlockCard({ title, unlocked, url, isCalendar }) {
   );
 }
 
-
-
-
 // ------------------------------------------------------------------
 // ------------------------------------------------------------------
 // ------------------------------------------------------------------
-
 
 function AuthScreen({
   firstName,
@@ -267,24 +268,27 @@ function AuthScreen({
         <div className="topBar">
           <div className="appTitle">{APP_TITLE}</div>
         </div>
-        <Divider / >
+        <Divider />
 
         <div className="subText">Fill the information to continue</div>
-        <div className="subText">(If it's your first time using, submit the information to register)</div>
+        <div className="subText">
+          (If it's your first time using, submit the information to register)
+        </div>
 
-        <Divider / >
+        <Divider />
 
-        <FieldRow label="First Name" value={firstName} onChange={setFirstName} />
+        <FieldRow
+          label="First Name"
+          value={firstName}
+          onChange={setFirstName}
+        />
         <FieldRow label="Last Name" value={lastName} onChange={setLastName} />
-        <FieldRow label="Email" value={email} onChange={setEmail}/>
-        <Divider / >
+        <FieldRow label="Email" value={email} onChange={setEmail} />
+        <Divider />
 
         <Button onClick={onSubmit} disabled={authBusy}>
           Confirm
         </Button>
-
-        {/* {authError ? <div className="errorText">{authError}</div> : null} */}
-
       </div>
     </div>
   );
@@ -330,13 +334,18 @@ function ProfileScreen({
         <div className="sectionDetail">Contact Info Setup</div>
         <div className="sectionDetail">Copy/Paste your contact urls</div>
 
-        <Divider / >
+        <Divider />
         {/* Website */}
         <div className="contactBox">
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">Website</div>
             <label className="lockLabel">
-              <input type="checkbox" className="checkBox" checked={lockWebsite} onChange={(e) => setLockWebsite(e.target.checked)} />
+              <input
+                type="checkbox"
+                className="checkBox"
+                checked={lockWebsite}
+                onChange={(e) => setLockWebsite(e.target.checked)}
+              />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -352,7 +361,12 @@ function ProfileScreen({
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">LinkedIn</div>
             <label className="lockLabel">
-              <input type="checkbox" className="checkBox" checked={lockLinkedin} onChange={(e) => setLockLinkedin(e.target.checked)} />
+              <input
+                type="checkbox"
+                className="checkBox"
+                checked={lockLinkedin}
+                onChange={(e) => setLockLinkedin(e.target.checked)}
+              />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -368,7 +382,12 @@ function ProfileScreen({
           <div className="contactBoxHeader">
             <div className="contactBoxTitle">Instagram</div>
             <label className="lockLabel">
-              <input type="checkbox" className="checkBox" checked={lockInstagram} onChange={(e) => setLockInstagram(e.target.checked)} />
+              <input
+                type="checkbox"
+                className="checkBox"
+                checked={lockInstagram}
+                onChange={(e) => setLockInstagram(e.target.checked)}
+              />
               <span>Check if you don't want to use</span>
             </label>
           </div>
@@ -379,10 +398,10 @@ function ProfileScreen({
           />
         </div>
 
-        <Divider / >
+        <Divider />
 
         <Button onClick={onSubmit} disabled={profileBusy}>
-        Submit
+          Submit
         </Button>
 
         {/* {profileError ? <div className="errorText">{profileError}</div> : null} */}
@@ -391,7 +410,15 @@ function ProfileScreen({
   );
 }
 
-function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, othersMap, onLogout }) {
+function PersonalScreen({
+  myName,
+  myEmail,
+  connCount,
+  totalOthers,
+  connections,
+  othersMap,
+  onLogout,
+}) {
   return (
     <div className="totalBox">
       <div className="card">
@@ -408,19 +435,16 @@ function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, 
           </div>
         </div>
 
-
         <Divider />
 
-          <a
-            href="https://evilpotatoking.itch.io/handshake-test"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: "none", display: "block" }}
-          >
-            <Button>
-              Coalescence, Data Visualization
-            </Button>
-          </a>
+        <a
+          href="https://evilpotatoking.itch.io/handshake-test"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none", display: "block" }}
+        >
+          <Button>Coalescence, Data Visualization</Button>
+        </a>
 
         <Divider />
         <Divider />
@@ -434,7 +458,7 @@ function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, 
             {connections.map((c) => {
               const other = othersMap[c.otherId];
               const otherName = other?.Name || c.otherId;
-              
+
               const stateNum = Math.max(0, safeIntFromAny(c.state, 0));
               const plan = buildUnlockPlan(other);
               const guestEmail = other?.Email || "";
@@ -447,7 +471,6 @@ function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, 
                   {plan.map((item) => {
                     const unlocked = stateNum >= item.threshold;
 
-                    
                     if (item.isInviteDinner) {
                       const inviteUrl = buildDinnerInviteUrl({
                         guestEmail,
@@ -465,7 +488,6 @@ function PersonalScreen({ myName, myEmail, connCount, totalOthers, connections, 
                       );
                     }
 
-                    
                     return (
                       <UnlockCard
                         key={`${c.otherId}-${item.key}`}
@@ -519,12 +541,10 @@ export function App() {
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
 
-
   const [connCount, setConnCount] = useState(0);
-  const [connections, setConnections] = useState([]); // [{otherId, state}]
+  const [connections, setConnections] = useState([]);
   const [othersMap, setOthersMap] = useState({});
-  const [totalOthers, setTotalOthers] = useState(0); // ✅ 분모용
-
+  const [totalOthers, setTotalOthers] = useState(0);
 
   useEffect(() => {
     document.title = APP_TITLE;
@@ -534,7 +554,6 @@ export function App() {
       setScreen("me");
     }
   }, []);
-
 
   useEffect(() => {
     if (!myClientId) return;
@@ -548,12 +567,11 @@ export function App() {
         }
         setMyClient({ id: snap.id, ...toClientShape(snap.data()) });
       },
-      (err) => console.error("my client snapshot error:", err)
+      (err) => console.error("my client snapshot error:", err),
     );
 
     return () => unsub();
   }, [myClientId]);
-
 
   useEffect(() => {
     if (!myClientId) {
@@ -572,12 +590,11 @@ export function App() {
         });
         setTotalOthers(count);
       },
-      (err) => console.error("clients snapshot error:", err)
+      (err) => console.error("clients snapshot error:", err),
     );
 
     return () => unsub();
   }, [myClientId]);
-
 
   useEffect(() => {
     if (!myClientId) return;
@@ -596,24 +613,25 @@ export function App() {
         setConnections(list);
         setConnCount(list.length);
       },
-      (err) => console.error("clientConnection snapshot error:", err)
+      (err) => console.error("clientConnection snapshot error:", err),
     );
 
     return () => unsub();
   }, [myClientId]);
 
-
   useEffect(() => {
     const unsubs = [];
     let alive = true;
 
-    const ids = connections.map((c) => c.otherId).filter((id) => id && !isReservedClientId(id));
+    const ids = connections
+      .map((c) => c.otherId)
+      .filter((id) => id && !isReservedClientId(id));
     if (!ids.length) {
       setOthersMap({});
       return () => {};
     }
 
-   setOthersMap((prev) => {
+    setOthersMap((prev) => {
       const next = { ...prev };
       for (const k of Object.keys(next)) {
         if (!ids.includes(k)) delete next[k];
@@ -634,9 +652,12 @@ export function App() {
             });
             return;
           }
-          setOthersMap((prev) => ({ ...prev, [id]: { id: snap.id, ...toClientShape(snap.data()) } }));
+          setOthersMap((prev) => ({
+            ...prev,
+            [id]: { id: snap.id, ...toClientShape(snap.data()) },
+          }));
         },
-        (err) => console.error("other client snapshot error:", id, err)
+        (err) => console.error("other client snapshot error:", id, err),
       );
       unsubs.push(unsub);
     }
@@ -644,13 +665,12 @@ export function App() {
     return () => {
       alive = false;
       unsubs.forEach((fn) => {
-        try { fn(); } catch {}
+        try {
+          fn();
+        } catch {}
       });
     };
   }, [connections]);
-
-
-  
 
   async function handleAuthSubmit() {
     setAuthError("");
@@ -684,7 +704,9 @@ export function App() {
       await setDoc(doc(db, "clients", newId), docData);
 
       // auto create clientConnection + dummy
-      await setDoc(doc(db, "clients", newId, "clientConnection", "0000"), { State: "0" });
+      await setDoc(doc(db, "clients", newId, "clientConnection", "0000"), {
+        State: "0",
+      });
 
       localStorage.setItem("coalesce_clientId", newId);
       setMyClientId(newId);
@@ -747,10 +769,8 @@ export function App() {
     setProfileError("");
   }
 
-
   const myName = myClient?.Name || "";
   const myEmail = myClient?.Email || "";
-
 
   if (screen === "auth") {
     return (
